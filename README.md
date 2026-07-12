@@ -200,7 +200,25 @@ shared/
 └── api.ts                     # Shared types for client/server
 ```
 
-## 🚀 Features Included
+## � MySQL connection
+
+The app now uses a MySQL-backed API layer for vehicles, drivers, trips, maintenance, and expenses. Create a .env file from the example and set your database connection details:
+
+```bash
+cp .env.example .env
+```
+
+```env
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_USER=root
+MYSQL_PASSWORD=your_password
+MYSQL_DATABASE=transitops
+```
+
+When the server starts, it will create the required tables automatically and seed them the first time it connects successfully.
+
+## �🚀 Features Included
 
 ### Security & Authentication
 - ✅ Email/Password authentication
