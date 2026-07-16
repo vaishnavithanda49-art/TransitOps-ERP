@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail, Phone, ShieldCheck, UserRound, UserCog } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail, MailCheck, Phone, ShieldCheck, UserRound, UserCog } from "lucide-react";
 import { toast } from "sonner";
 import BrandLogo from "../components/BrandLogo";
 
@@ -29,6 +29,8 @@ const initialForm: FormState = {
 };
 
 const roleOptions: Role[] = ["Fleet Manager", "Dispatcher", "Safety Officer", "Financial Analyst"];
+const USERS_KEY = "transitops_users";
+const OTP_KEY = "transitops_pending_otp";
 
 const passwordStrengthLabel = (score: number) => {
   if (score <= 2) return { label: "Weak", color: "bg-red-500" };
@@ -44,6 +46,9 @@ export default function Register() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [otpStep, setOtpStep] = useState(false);
+  const [otpValue, setOtpValue] = useState("");
+  const [pendingEmail, setPendingEmail] = useState("");
 
   const passwordScore = (() => {
     let score = 0;
@@ -131,6 +136,31 @@ export default function Register() {
     setErrors((prev) => ({ ...prev, [name]: fieldError }));
   };
 
+  const sendOtp = (email: string) => {
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const payload = {
+      email,
+      code,
+      expiresAt: Date.now() + 10 * 60 * 1000,
+    };
+
+    localStorage.setItem(OTP_KEY, JSON.stringify(payload));
+    setPendingEmail(email);
+    setOtpValue("");
+    setOtpStep(true);
+
+    try {
+      navigator.clipboard.writeText(code);
+    } catch {
+      // Ignore clipboard issues in unsupported environments.
+    }
+
+    const mailtoLink = `mailto:${email}?subject=${encodeURIComponent("TransitOps verification code")}&body=${encodeURIComponent(`Your TransitOps verification code is ${code}. It will expire in 10 minutes.`)}`;
+    window.open(mailtoLink, "_blank", "noopener,noreferrer");
+
+    toast.success(`A 6-digit code was prepared for ${email}.`);
+  };
+
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const nextTouched: FormTouched = {
@@ -154,22 +184,80 @@ export default function Register() {
     setIsSubmitting(true);
 
     window.setTimeout(() => {
-      const payload = {
-        sub: form.email,
-        name: form.fullName,
+      const rawUsers = localStorage.getItem(USERS_KEY);
+      const users = rawUsers ? JSON.parse(rawUsers) : [];
+      const exists = users.some((user: { email: string }) => user.email.toLowerCase() === form.email.trim().toLowerCase());
+
+      if (exists) {
+        toast.error("An account with this email already exists.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      sendOtp(form.email.trim());
+      setIsSubmitting(false);
+    }, 700);
+  };
+
+  const handleOtpSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    try {
+      const rawOtp = localStorage.getItem(OTP_KEY);
+      if (!rawOtp) {
+        toast.error("The verification code has expired. Please request a new one.");
+        setOtpStep(false);
+        return;
+      }
+
+      const pendingOtp = JSON.parse(rawOtp);
+      if (Date.now() > pendingOtp.expiresAt) {
+        localStorage.removeItem(OTP_KEY);
+        toast.error("The verification code has expired. Please request a new one.");
+        setOtpStep(false);
+        return;
+      }
+
+      if (otpValue.trim() !== pendingOtp.code) {
+        toast.error("The verification code is incorrect. Please try again.");
+        return;
+      }
+
+      const rawUsers = localStorage.getItem(USERS_KEY);
+      const users = rawUsers ? JSON.parse(rawUsers) : [];
+      const newUser = {
+        fullName: form.fullName.trim(),
+        email: form.email.trim(),
+        phone: form.phone.trim(),
         role: form.role,
+        password: form.password,
+      };
+
+      users.push(newUser);
+      localStorage.setItem(USERS_KEY, JSON.stringify(users));
+      localStorage.removeItem(OTP_KEY);
+
+      const payload = {
+        sub: newUser.email,
+        name: newUser.fullName,
+        role: newUser.role,
         exp: Date.now() + 60 * 60 * 1000,
       };
       const mockToken = `eyJhbGciOiJub25lIn0.${window.btoa(JSON.stringify(payload))}.sig`;
 
       localStorage.setItem("transitops_token", mockToken);
-      localStorage.setItem("transitops_role", form.role);
-      localStorage.setItem("transitops_user", form.fullName);
+      localStorage.setItem("transitops_role", newUser.role);
+      localStorage.setItem("transitops_user", newUser.fullName);
 
-      setIsSubmitting(false);
-      toast.success(`Welcome aboard, ${form.fullName.split(" ")[0]}! Your account is ready.`);
+      toast.success(`Email verified. Welcome aboard, ${newUser.fullName.split(" ")[0]}!`);
       window.location.assign("/dashboard");
-    }, 900);
+    } catch {
+      toast.error("We could not complete verification. Please try again.");
+    }
+  };
+
+  const handleResendOtp = () => {
+    sendOtp(form.email.trim());
   };
 
   return (
@@ -201,8 +289,52 @@ export default function Register() {
         </div>
 
         <div className="flex-1 p-6 sm:p-8 lg:p-10">
-          <form className="space-y-5" onSubmit={handleSubmit} noValidate>
-            <div className="space-y-2">
+          {otpStep ? (
+            <form className="space-y-5" onSubmit={handleOtpSubmit} noValidate>
+              <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-800">
+                <div className="flex items-center gap-2 font-semibold">
+                  <MailCheck className="h-4 w-4" />
+                  Verify your email
+                </div>
+                <p className="mt-2 text-sm text-sky-700">
+                  We prepared a verification code for <span className="font-semibold">{pendingEmail}</span>.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700" htmlFor="otp">
+                  Enter OTP
+                </label>
+                <input
+                  id="otp"
+                  name="otp"
+                  type="text"
+                  inputMode="numeric"
+                  value={otpValue}
+                  onChange={(event) => setOtpValue(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-center text-lg font-semibold tracking-[0.35em] outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+                  placeholder="123456"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-700"
+              >
+                Verify Email
+                <ArrowRight className="h-4 w-4" />
+              </button>
+
+              <div className="flex items-center justify-between text-sm text-slate-600">
+                <p>Code not received?</p>
+                <button type="button" onClick={handleResendOtp} className="font-semibold text-sky-700 transition hover:text-sky-800">
+                  Resend code
+                </button>
+              </div>
+            </form>
+          ) : (
+            <form className="space-y-5" onSubmit={handleSubmit} noValidate>
+              <div className="space-y-2">
               <label className="text-sm font-semibold text-slate-700" htmlFor="fullName">
                 Full Name
               </label>
@@ -386,13 +518,14 @@ export default function Register() {
               {!isSubmitting ? <ArrowRight className="h-4 w-4" /> : null}
             </button>
 
-            <p className="text-center text-sm text-slate-600">
-              Already have an account? {" "}
-              <Link to="/login" className="font-semibold text-sky-700 transition hover:text-sky-800">
-                Login
-              </Link>
-            </p>
-          </form>
+              <p className="text-center text-sm text-slate-600">
+                Already have an account? {" "}
+                <Link to="/login" className="font-semibold text-sky-700 transition hover:text-sky-800">
+                  Login
+                </Link>
+              </p>
+            </form>
+          )}
         </div>
       </div>
     </div>

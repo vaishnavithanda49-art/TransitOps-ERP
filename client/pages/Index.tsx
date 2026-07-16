@@ -34,17 +34,20 @@ export default function Index() {
 
       {/* Hero Section */}
       <section className="container py-24 lg:py-32">
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
+        <div className="grid lg:grid-cols-[1.05fr_0.95fr] gap-12 items-center">
           <div className="space-y-8 animate-fade-up">
+            <div className="inline-flex items-center rounded-full border border-primary/20 bg-primary/5 px-4 py-2 text-sm font-medium text-primary">
+              Trusted by modern fleet teams
+            </div>
             <div className="space-y-4">
               <h1 className="text-5xl lg:text-6xl font-bold text-foreground leading-tight">
-                Smart Transport Operations Platform
+                A smarter way to run every route.
               </h1>
               <p className="text-xl text-muted-foreground leading-relaxed">
-                Digitize your entire fleet operations. Replace spreadsheets with real-time analytics, automate dispatch workflows, and maximize operational efficiency.
+                Unite dispatch, maintenance, driver oversight, and analytics in one elegant platform built for efficient transport operations.
               </p>
             </div>
-            <div className="flex gap-4 pt-4">
+            <div className="flex flex-wrap gap-4 pt-4">
               <Link
                 to="/register"
                 className="px-8 py-3 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 transition flex items-center gap-2 group"
@@ -56,18 +59,67 @@ export default function Index() {
                 href="#features"
                 className="px-8 py-3 border border-border text-foreground font-semibold rounded-lg hover:bg-secondary/5 transition"
               >
-                Learn More
+                Explore Features
               </a>
             </div>
+            <div className="grid sm:grid-cols-3 gap-4 pt-2">
+              <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                <p className="text-sm text-muted-foreground">Live visibility</p>
+                <p className="mt-1 text-xl font-semibold text-foreground">24/7</p>
+              </div>
+              <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                <p className="text-sm text-muted-foreground">Routes optimized</p>
+                <p className="mt-1 text-xl font-semibold text-foreground">98.4%</p>
+              </div>
+              <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                <p className="text-sm text-muted-foreground">Downtime reduced</p>
+                <p className="mt-1 text-xl font-semibold text-foreground">-32%</p>
+              </div>
+            </div>
           </div>
+
           <div className="relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-accent/10 rounded-2xl blur-3xl" />
-            <div className="relative bg-gradient-to-br from-secondary/20 to-primary/20 rounded-2xl p-8 border border-border/50 backdrop-blur-sm">
-              <div className="space-y-4">
-                <div className="h-32 bg-gradient-to-r from-primary/20 to-secondary/20 rounded-lg" />
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="h-20 bg-accent/10 rounded-lg" />
-                  <div className="h-20 bg-accent/10 rounded-lg" />
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-accent/10 rounded-3xl blur-3xl" />
+            <div className="relative rounded-3xl border border-border/70 bg-slate-950 p-6 text-white shadow-2xl">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <p className="text-sm text-slate-300">Operations overview</p>
+                  <h3 className="text-xl font-semibold">North Hub Command Center</h3>
+                </div>
+                <div className="rounded-full bg-emerald-400/15 px-3 py-1 text-sm font-medium text-emerald-300">
+                  Live
+                </div>
+              </div>
+
+              <div className="grid sm:grid-cols-3 gap-3 mb-6">
+                <div className="rounded-2xl bg-white/10 p-3">
+                  <p className="text-xs text-slate-300">Vehicles</p>
+                  <p className="mt-1 text-2xl font-semibold">128</p>
+                </div>
+                <div className="rounded-2xl bg-white/10 p-3">
+                  <p className="text-xs text-slate-300">Active trips</p>
+                  <p className="mt-1 text-2xl font-semibold">26</p>
+                </div>
+                <div className="rounded-2xl bg-white/10 p-3">
+                  <p className="text-xs text-slate-300">On-time rate</p>
+                  <p className="mt-1 text-2xl font-semibold">94%</p>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/10 p-4 space-y-4">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-300">Route 14 · Downtown</span>
+                  <span className="text-emerald-300">On time</span>
+                </div>
+                <div className="h-2 rounded-full bg-white/10">
+                  <div className="h-2 w-[82%] rounded-full bg-gradient-to-r from-primary to-accent" />
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-300">Vehicle 204 · Maintained</span>
+                  <span className="text-slate-100">Ready</span>
+                </div>
+                <div className="h-2 rounded-full bg-white/10">
+                  <div className="h-2 w-[74%] rounded-full bg-gradient-to-r from-primary to-accent" />
                 </div>
               </div>
             </div>
@@ -205,11 +257,10 @@ export default function Index() {
           </p>
           <div className="flex gap-4 justify-center pt-4">
             <Link
-              to="/dashboard"
-              className="px-8 py-3 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 transition inline-flex items-center gap-2 group"
+              to="/register"
+              className="px-8 py-3 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 transition"
             >
-              Access Platform
-              <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              Create Account
             </Link>
             <Link
               to="/login"

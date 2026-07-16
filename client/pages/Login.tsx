@@ -1,7 +1,18 @@
 import { Link } from "react-router-dom";
 import { useState } from "react";
 import { Mail, Lock, LogIn } from "lucide-react";
+import { toast } from "sonner";
 import BrandLogo from "../components/BrandLogo";
+
+type StoredUser = {
+  fullName: string;
+  email: string;
+  phone: string;
+  role: string;
+  password: string;
+};
+
+const USERS_KEY = "transitops_users";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -11,10 +22,37 @@ export default function Login() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      window.location.href = "/dashboard";
-    }, 1000);
+
+    window.setTimeout(() => {
+      try {
+        const rawUsers = localStorage.getItem(USERS_KEY);
+        const users: StoredUser[] = rawUsers ? JSON.parse(rawUsers) : [];
+        const match = users.find((user) => user.email.toLowerCase() === email.trim().toLowerCase() && user.password === password);
+
+        if (!match) {
+          toast.error("We could not find an account with those details.");
+          setIsLoading(false);
+          return;
+        }
+
+        const payload = {
+          sub: match.email,
+          name: match.fullName,
+          role: match.role,
+          exp: Date.now() + 60 * 60 * 1000,
+        };
+        const mockToken = `eyJhbGciOiJub25lIn0.${window.btoa(JSON.stringify(payload))}.sig`;
+
+        localStorage.setItem("transitops_token", mockToken);
+        localStorage.setItem("transitops_role", match.role);
+        localStorage.setItem("transitops_user", match.fullName);
+        toast.success(`Welcome back, ${match.fullName.split(" ")[0]}!`);
+        window.location.assign("/dashboard");
+      } catch {
+        toast.error("Something went wrong while signing you in.");
+        setIsLoading(false);
+      }
+    }, 800);
   };
 
   return (
@@ -95,13 +133,9 @@ export default function Login() {
             </button>
           </form>
 
-          {/* Demo Credentials */}
-          <div className="bg-secondary/10 border border-secondary/20 rounded-lg p-4 text-sm">
-            <p className="font-semibold text-foreground mb-2">Demo Credentials</p>
-            <p className="text-muted-foreground">
-              <span className="text-foreground">Email:</span> demo@transitops.com<br/>
-              <span className="text-foreground">Password:</span> demo123456
-            </p>
+          <div className="rounded-lg border border-border bg-slate-50 p-4 text-sm text-muted-foreground">
+            <p className="font-semibold text-foreground">Secure sign-in</p>
+            <p className="mt-1">Use the email address and password from your verified TransitOps account.</p>
           </div>
 
           {/* Footer */}

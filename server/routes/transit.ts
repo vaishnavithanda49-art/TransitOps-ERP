@@ -1,5 +1,5 @@
 import { RequestHandler } from "express";
-import { initializeDatabaseSchema, queryMysql, pingMysql } from "../db/mysql";
+import { getCollection, pingMongo } from "../db/mongo";
 
 interface TransitListResponse {
   ok: boolean;
@@ -8,227 +8,387 @@ interface TransitListResponse {
   message?: string;
 }
 
+const fallbackVehicles = [
+  {
+    id: 1,
+    registration_number: "TRN-2024-001",
+    name: "Fleet Truck 01",
+    model: "Volvo FH16",
+    manufacturer: "Volvo",
+    type: "Truck",
+    status: "Active",
+    odometer: 45230,
+    capacity: 25,
+    last_maintenance: "2024-01-15",
+    next_maintenance: "2024-04-15",
+    registration_expiry: "2025-06-30",
+    assigned_to: "John Doe",
+  },
+  {
+    id: 2,
+    registration_number: "TRN-2024-002",
+    name: "Fleet Truck 02",
+    model: "Scania R450",
+    manufacturer: "Scania",
+    type: "Truck",
+    status: "Active",
+    odometer: 32156,
+    capacity: 20,
+    last_maintenance: "2024-01-20",
+    next_maintenance: "2024-04-20",
+    registration_expiry: "2025-07-15",
+    assigned_to: "Mike Johnson",
+  },
+  {
+    id: 3,
+    registration_number: "TRN-2024-003",
+    name: "Delivery Van 01",
+    model: "Mercedes Sprinter",
+    manufacturer: "Mercedes",
+    type: "Van",
+    status: "Maintenance",
+    odometer: 28900,
+    capacity: 8,
+    last_maintenance: "2024-02-01",
+    next_maintenance: "2024-05-01",
+    registration_expiry: "2025-05-20",
+    assigned_to: null,
+  },
+];
+
+const fallbackDrivers = [
+  {
+    id: 1,
+    name: "John Doe",
+    employee_id: "EMP001",
+    license_number: "DL-2024-001",
+    license_expiry: "2026-06-15",
+    license_category: "HCV",
+    status: "Available",
+    safety_score: 95,
+    rating: 4.8,
+    experience: 12,
+    joining_date: "2015-03-10",
+    phone: "+1-555-0101",
+    email: "john.doe@transitops.com",
+    current_vehicle: "TRN-2024-001",
+  },
+  {
+    id: 2,
+    name: "Mike Johnson",
+    employee_id: "EMP002",
+    license_number: "DL-2024-002",
+    license_expiry: "2025-12-20",
+    license_category: "HCV",
+    status: "On Duty",
+    safety_score: 88,
+    rating: 4.5,
+    experience: 8,
+    joining_date: "2018-07-22",
+    phone: "+1-555-0102",
+    email: "mike.johnson@transitops.com",
+    current_vehicle: "TRN-2024-002",
+  },
+];
+
+const fallbackTrips = [
+  {
+    id: 1,
+    source: "New York, NY",
+    destination: "Boston, MA",
+    driver: "John Doe",
+    vehicle: "TRN-2024-001",
+    status: "Completed",
+    cargo_type: "Electronics",
+    cargo_weight: 15,
+    planned_distance: 215,
+    estimated_time: 4,
+    scheduled_date: "2024-02-10",
+    priority: "High",
+    revenue: 2500,
+  },
+  {
+    id: 2,
+    source: "Chicago, IL",
+    destination: "Detroit, MI",
+    driver: "Mike Johnson",
+    vehicle: "TRN-2024-002",
+    status: "In Progress",
+    cargo_type: "Furniture",
+    cargo_weight: 20,
+    planned_distance: 280,
+    estimated_time: 5,
+    scheduled_date: "2024-02-11",
+    priority: "Medium",
+    revenue: 3200,
+  },
+];
+
+const fallbackMaintenance = [
+  {
+    id: 1,
+    vehicle_id: "VEH001",
+    vehicle_name: "Fleet Truck 01",
+    type: "Preventive",
+    start_date: "2024-02-10",
+    completion_date: "2024-02-12",
+    status: "Completed",
+    cost: 2500,
+    technician: "Robert Tech",
+    description: "Regular servicing, oil change, filter replacement",
+    next_due_date: "2024-05-10",
+  },
+];
+
+const fallbackExpenses = [
+  {
+    id: 1,
+    date: "2024-02-11",
+    vehicle_id: "VEH001",
+    vehicle_name: "Fleet Truck 01",
+    category: "Fuel",
+    description: "Diesel fuel - 50L",
+    amount: 350,
+    status: "Approved",
+    odometer: 45230,
+    quantity: 50,
+    unit_price: 7,
+  },
+];
+
+function createResponse(data: any[], source: "mysql" | "fallback" = "fallback"): TransitListResponse {
+  return { ok: true, source, data };
+}
+
 async function ensureSeedData() {
-  const dbReady = await pingMysql();
+  const dbReady = await pingMongo();
   if (!dbReady) {
     return false;
   }
 
-  await initializeDatabaseSchema();
-
-  const existing = await queryMysql("SELECT COUNT(*) as count FROM vehicles");
-  const count = Number((existing[0] as any)?.count || 0);
+  const collection = await getCollection("vehicles");
+  const count = await collection.countDocuments();
 
   if (count === 0) {
-    await queryMysql(
-      `INSERT INTO vehicles (registration_number, name, model, manufacturer, type, status, odometer, capacity, last_maintenance, next_maintenance, registration_expiry, assigned_to) VALUES ?`,
-      [
-        [
-          "TRN-2024-001",
-          "Fleet Truck 01",
-          "Volvo FH16",
-          "Volvo",
-          "Truck",
-          "Active",
-          45230,
-          25,
-          "2024-01-15",
-          "2024-04-15",
-          "2025-06-30",
-          "John Doe",
-        ],
-        [
-          "TRN-2024-002",
-          "Fleet Truck 02",
-          "Scania R450",
-          "Scania",
-          "Truck",
-          "Active",
-          32156,
-          20,
-          "2024-01-20",
-          "2024-04-20",
-          "2025-07-15",
-          "Mike Johnson",
-        ],
-        [
-          "TRN-2024-003",
-          "Delivery Van 01",
-          "Mercedes Sprinter",
-          "Mercedes",
-          "Van",
-          "Maintenance",
-          28900,
-          8,
-          "2024-02-01",
-          "2024-05-01",
-          "2025-05-20",
-          null,
-        ],
-      ],
-    );
+    await collection.insertMany([
+      {
+        registration_number: "TRN-2024-001",
+        name: "Fleet Truck 01",
+        model: "Volvo FH16",
+        manufacturer: "Volvo",
+        type: "Truck",
+        status: "Active",
+        odometer: 45230,
+        capacity: 25,
+        last_maintenance: "2024-01-15",
+        next_maintenance: "2024-04-15",
+        registration_expiry: "2025-06-30",
+        assigned_to: "John Doe",
+      },
+      {
+        registration_number: "TRN-2024-002",
+        name: "Fleet Truck 02",
+        model: "Scania R450",
+        manufacturer: "Scania",
+        type: "Truck",
+        status: "Active",
+        odometer: 32156,
+        capacity: 20,
+        last_maintenance: "2024-01-20",
+        next_maintenance: "2024-04-20",
+        registration_expiry: "2025-07-15",
+        assigned_to: "Mike Johnson",
+      },
+      {
+        registration_number: "TRN-2024-003",
+        name: "Delivery Van 01",
+        model: "Mercedes Sprinter",
+        manufacturer: "Mercedes",
+        type: "Van",
+        status: "Maintenance",
+        odometer: 28900,
+        capacity: 8,
+        last_maintenance: "2024-02-01",
+        next_maintenance: "2024-05-01",
+        registration_expiry: "2025-05-20",
+        assigned_to: null,
+      },
+    ]);
 
-    await queryMysql(
-      `INSERT INTO drivers (name, employee_id, license_number, license_expiry, license_category, status, safety_score, rating, experience, joining_date, phone, email, current_vehicle) VALUES ?`,
-      [
-        [
-          "John Doe",
-          "EMP001",
-          "DL-2024-001",
-          "2026-06-15",
-          "HCV",
-          "Available",
-          95,
-          4.8,
-          12,
-          "2015-03-10",
-          "+1-555-0101",
-          "john.doe@transitops.com",
-          "TRN-2024-001",
-        ],
-        [
-          "Mike Johnson",
-          "EMP002",
-          "DL-2024-002",
-          "2025-12-20",
-          "HCV",
-          "On Duty",
-          88,
-          4.5,
-          8,
-          "2018-07-22",
-          "+1-555-0102",
-          "mike.johnson@transitops.com",
-          "TRN-2024-002",
-        ],
-      ],
-    );
+    await (await getCollection("drivers")).insertMany([
+      {
+        name: "John Doe",
+        employee_id: "EMP001",
+        license_number: "DL-2024-001",
+        license_expiry: "2026-06-15",
+        license_category: "HCV",
+        status: "Available",
+        safety_score: 95,
+        rating: 4.8,
+        experience: 12,
+        joining_date: "2015-03-10",
+        phone: "+1-555-0101",
+        email: "john.doe@transitops.com",
+        current_vehicle: "TRN-2024-001",
+      },
+      {
+        name: "Mike Johnson",
+        employee_id: "EMP002",
+        license_number: "DL-2024-002",
+        license_expiry: "2025-12-20",
+        license_category: "HCV",
+        status: "On Duty",
+        safety_score: 88,
+        rating: 4.5,
+        experience: 8,
+        joining_date: "2018-07-22",
+        phone: "+1-555-0102",
+        email: "mike.johnson@transitops.com",
+        current_vehicle: "TRN-2024-002",
+      },
+    ]);
 
-    await queryMysql(
-      `INSERT INTO trips (source, destination, driver, vehicle, status, cargo_type, cargo_weight, planned_distance, estimated_time, scheduled_date, priority, revenue) VALUES ?`,
-      [
-        [
-          "New York, NY",
-          "Boston, MA",
-          "John Doe",
-          "TRN-2024-001",
-          "Completed",
-          "Electronics",
-          15,
-          215,
-          4,
-          "2024-02-10",
-          "High",
-          2500,
-        ],
-        [
-          "Chicago, IL",
-          "Detroit, MI",
-          "Mike Johnson",
-          "TRN-2024-002",
-          "In Progress",
-          "Furniture",
-          20,
-          280,
-          5,
-          "2024-02-11",
-          "Medium",
-          3200,
-        ],
-      ],
-    );
+    await (await getCollection("trips")).insertMany([
+      {
+        source: "New York, NY",
+        destination: "Boston, MA",
+        driver: "John Doe",
+        vehicle: "TRN-2024-001",
+        status: "Completed",
+        cargo_type: "Electronics",
+        cargo_weight: 15,
+        planned_distance: 215,
+        estimated_time: 4,
+        scheduled_date: "2024-02-10",
+        priority: "High",
+        revenue: 2500,
+      },
+      {
+        source: "Chicago, IL",
+        destination: "Detroit, MI",
+        driver: "Mike Johnson",
+        vehicle: "TRN-2024-002",
+        status: "In Progress",
+        cargo_type: "Furniture",
+        cargo_weight: 20,
+        planned_distance: 280,
+        estimated_time: 5,
+        scheduled_date: "2024-02-11",
+        priority: "Medium",
+        revenue: 3200,
+      },
+    ]);
 
-    await queryMysql(
-      `INSERT INTO maintenance_records (vehicle_id, vehicle_name, type, start_date, completion_date, status, cost, technician, description, next_due_date) VALUES ?`,
-      [
-        [
-          "VEH001",
-          "Fleet Truck 01",
-          "Preventive",
-          "2024-02-10",
-          "2024-02-12",
-          "Completed",
-          2500,
-          "Robert Tech",
-          "Regular servicing, oil change, filter replacement",
-          "2024-05-10",
-        ],
-      ],
-    );
+    await (await getCollection("maintenance_records")).insertMany([
+      {
+        vehicle_id: "VEH001",
+        vehicle_name: "Fleet Truck 01",
+        type: "Preventive",
+        start_date: "2024-02-10",
+        completion_date: "2024-02-12",
+        status: "Completed",
+        cost: 2500,
+        technician: "Robert Tech",
+        description: "Regular servicing, oil change, filter replacement",
+        next_due_date: "2024-05-10",
+      },
+    ]);
 
-    await queryMysql(
-      `INSERT INTO expenses (date, vehicle_id, vehicle_name, category, description, amount, status, odometer, quantity, unit_price) VALUES ?`,
-      [
-        [
-          "2024-02-11",
-          "VEH001",
-          "Fleet Truck 01",
-          "Fuel",
-          "Diesel fuel - 50L",
-          350,
-          "Approved",
-          45230,
-          50,
-          7,
-        ],
-      ],
-    );
+    await (await getCollection("expenses")).insertMany([
+      {
+        date: "2024-02-11",
+        vehicle_id: "VEH001",
+        vehicle_name: "Fleet Truck 01",
+        category: "Fuel",
+        description: "Diesel fuel - 50L",
+        amount: 350,
+        status: "Approved",
+        odometer: 45230,
+        quantity: 50,
+        unit_price: 7,
+      },
+    ]);
   }
 
   return true;
 }
 
 export const listVehicles: RequestHandler = async (_req, res) => {
+  const dbReady = await pingMongo();
+  if (!dbReady) {
+    res.json(createResponse(fallbackVehicles, "fallback"));
+    return;
+  }
+
   try {
     await ensureSeedData();
-    const data = await queryMysql<any>("SELECT * FROM vehicles ORDER BY id ASC");
-    const response: TransitListResponse = {
-      ok: true,
-      source: "mysql",
-      data,
-    };
-    res.json(response);
+    const data = await (await getCollection("vehicles")).find({}).sort({ _id: 1 }).toArray();
+    res.json(createResponse(data, "mongodb"));
   } catch (error) {
-    res.status(500).json({ ok: false, source: "fallback", data: [], message: (error as Error).message });
+    res.json(createResponse(fallbackVehicles, "fallback"));
   }
 };
 
 export const listDrivers: RequestHandler = async (_req, res) => {
+  const dbReady = await pingMongo();
+  if (!dbReady) {
+    res.json(createResponse(fallbackDrivers, "fallback"));
+    return;
+  }
+
   try {
     await ensureSeedData();
-    const data = await queryMysql<any>("SELECT * FROM drivers ORDER BY id ASC");
-    res.json({ ok: true, source: "mysql", data });
+    const data = await (await getCollection("drivers")).find({}).sort({ _id: 1 }).toArray();
+    res.json(createResponse(data, "mongodb"));
   } catch (error) {
-    res.status(500).json({ ok: false, source: "fallback", data: [], message: (error as Error).message });
+    res.json(createResponse(fallbackDrivers, "fallback"));
   }
 };
 
 export const listTrips: RequestHandler = async (_req, res) => {
+  const dbReady = await pingMongo();
+  if (!dbReady) {
+    res.json(createResponse(fallbackTrips, "fallback"));
+    return;
+  }
+
   try {
     await ensureSeedData();
-    const data = await queryMysql<any>("SELECT * FROM trips ORDER BY id ASC");
-    res.json({ ok: true, source: "mysql", data });
+    const data = await (await getCollection("trips")).find({}).sort({ _id: 1 }).toArray();
+    res.json(createResponse(data, "mongodb"));
   } catch (error) {
-    res.status(500).json({ ok: false, source: "fallback", data: [], message: (error as Error).message });
+    res.json(createResponse(fallbackTrips, "fallback"));
   }
 };
 
 export const listMaintenance: RequestHandler = async (_req, res) => {
+  const dbReady = await pingMongo();
+  if (!dbReady) {
+    res.json(createResponse(fallbackMaintenance, "fallback"));
+    return;
+  }
+
   try {
     await ensureSeedData();
-    const data = await queryMysql<any>("SELECT * FROM maintenance_records ORDER BY id ASC");
-    res.json({ ok: true, source: "mysql", data });
+    const data = await (await getCollection("maintenance_records")).find({}).sort({ _id: 1 }).toArray();
+    res.json(createResponse(data, "mongodb"));
   } catch (error) {
-    res.status(500).json({ ok: false, source: "fallback", data: [], message: (error as Error).message });
+    res.json(createResponse(fallbackMaintenance, "fallback"));
   }
 };
 
 export const listExpenses: RequestHandler = async (_req, res) => {
+  const dbReady = await pingMongo();
+  if (!dbReady) {
+    res.json(createResponse(fallbackExpenses, "fallback"));
+    return;
+  }
+
   try {
     await ensureSeedData();
-    const data = await queryMysql<any>("SELECT * FROM expenses ORDER BY id ASC");
-    res.json({ ok: true, source: "mysql", data });
+    const data = await (await getCollection("expenses")).find({}).sort({ _id: 1 }).toArray();
+    res.json(createResponse(data, "mongodb"));
   } catch (error) {
-    res.status(500).json({ ok: false, source: "fallback", data: [], message: (error as Error).message });
+    res.json(createResponse(fallbackExpenses, "fallback"));
   }
 };

@@ -3,7 +3,7 @@ import express from "express";
 import cors from "cors";
 import { handleDemo } from "./routes/demo";
 import { listDrivers, listExpenses, listMaintenance, listTrips, listVehicles } from "./routes/transit";
-import { pingMysql } from "./db/mysql";
+import { pingMongo } from "./db/mongo";
 
 export function createServer() {
   const app = express();
@@ -21,8 +21,8 @@ export function createServer() {
 
   app.get("/api/demo", handleDemo);
   app.get("/api/health/db", async (_req, res) => {
-    const ok = await pingMysql();
-    res.json({ ok, source: ok ? "mysql" : "unavailable" });
+    const ok = await pingMongo();
+    res.json({ ok, source: ok ? "mongodb" : "unavailable" });
   });
   app.get("/api/vehicles", listVehicles);
   app.get("/api/drivers", listDrivers);
