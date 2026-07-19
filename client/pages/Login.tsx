@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Mail, Lock, LogIn } from "lucide-react";
 import { toast } from "sonner";
 import BrandLogo from "../components/BrandLogo";
+import { supabase } from "../lib/supabase";
 
 type StoredUser = {
   fullName: string;
@@ -12,47 +13,45 @@ type StoredUser = {
   password: string;
 };
 
-const USERS_KEY = "transitops_users";
-
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    window.setTimeout(() => {
-      try {
-        const rawUsers = localStorage.getItem(USERS_KEY);
-        const users: StoredUser[] = rawUsers ? JSON.parse(rawUsers) : [];
-        const match = users.find((user) => user.email.toLowerCase() === email.trim().toLowerCase() && user.password === password);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
 
-        if (!match) {
-          toast.error("We could not find an account with those details.");
-          setIsLoading(false);
-          return;
-        }
-
-        const payload = {
-          sub: match.email,
-          name: match.fullName,
-          role: match.role,
-          exp: Date.now() + 60 * 60 * 1000,
-        };
-        const mockToken = `eyJhbGciOiJub25lIn0.${window.btoa(JSON.stringify(payload))}.sig`;
-
-        localStorage.setItem("transitops_token", mockToken);
-        localStorage.setItem("transitops_role", match.role);
-        localStorage.setItem("transitops_user", match.fullName);
-        toast.success(`Welcome back, ${match.fullName.split(" ")[0]}!`);
-        window.location.assign("/dashboard");
-      } catch {
-        toast.error("Something went wrong while signing you in.");
+      if (error || !data?.session || !data?.user) {
+        toast.error(error?.message || "We could not sign you in with those credentials.");
         setIsLoading(false);
+        return;
       }
-    }, 800);
+
+      const userName = data.user.user_metadata?.full_name || email.trim();
+      const userRole = data.user.user_metadata?.role || "";
+      const token = data.session.access_token;
+
+      if (token) {
+        localStorage.setItem("transitops_token", token);
+      }
+      if (userRole) {
+        localStorage.setItem("transitops_role", userRole);
+      }
+      localStorage.setItem("transitops_user", userName);
+
+      toast.success(`Welcome back, ${userName.split(" ")[0]}!`);
+      window.location.assign("/dashboard");
+    } catch (error: any) {
+      toast.error(error?.message || "Something went wrong while signing you in.");
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -108,7 +107,7 @@ export default function Login() {
                 <input type="checkbox" className="w-4 h-4 rounded border-border" />
                 <span className="text-muted-foreground">Remember me</span>
               </label>
-              <a href="#" className="text-primary hover:text-primary/80 transition font-medium">
+              <a href="/reset-password" className="text-primary hover:text-primary/80 transition font-medium">
                 Forgot password?
               </a>
             </div>
@@ -155,3 +154,4 @@ export default function Login() {
     </div>
   );
 }
+

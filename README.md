@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # TransitOps - Smart Transport Operations Platform
 
 A production-ready, enterprise-grade web application for digitizing and automating the complete transport operation lifecycle for logistics and fleet management companies.
@@ -217,6 +216,19 @@ MYSQL_PASSWORD=your_password
 MYSQL_DATABASE=transitops
 ```
 
+To enable email verification and password reset, add SMTP settings to your environment:
+
+```env
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=you@example.com
+SMTP_PASS=your-smtp-password
+SMTP_SECURE=false
+EMAIL_FROM=TransitOps <noreply@transitops.com>
+```
+
+For local development, the server will still allow verification and reset flows when SMTP is not configured; email content is logged instead of sent.
+
 When the server starts, it will create the required tables automatically and seed them the first time it connects successfully.
 
 ## �🚀 Features Included
@@ -365,25 +377,6 @@ For development questions or feature requests, continue prompting to extend the 
 **Status**: ✅ Frontend MVP Complete | 🔜 Backend Integration Ready | 🔜 Advanced Analytics Ready
 
 Built with ❤️ for Enterprise Transport Operations
-=======
-<<<<<<< HEAD
-# React + Vite
-
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
-
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
-=======
 # 🚛 TransitOps ERP
 
 > A Smart Transport Operations Platform that digitizes fleet management, vehicle dispatch, driver operations, maintenance, fuel tracking, and operational analytics.
@@ -540,37 +533,36 @@ TransitOps-ERP
 
 ## 🚀 Getting Started
 
-### Clone Repository
+### Clone the repository
 
 ```bash
 git clone https://github.com/<your-username>/TransitOps-ERP.git
+cd TransitOps-ERP
 ```
 
-### Frontend
+### Install dependencies
 
 ```bash
-cd frontend
 npm install
+```
+
+### Run the app
+
+```bash
+npm run dev
+```
+
+### Build for production
+
+```bash
+npm run build
 npm start
 ```
 
-### Backend
+### Environment
 
-```bash
-cd backend
-./mvnw spring-boot:run
-```
-
----
-
-## 🤝 Team
-
-Hackathon Project
-
----
+Copy `.env.example` to `.env` and set your database and SMTP credentials before running the server.
 
 ## 📄 License
 
-This project is developed for a Hackathon and is intended for educational and demonstration purposes.
->>>>>>> 2570e0927ccf16d0a9bbd0e4c2112f413f515b79
->>>>>>> f6e3bc586f89f454fd38570e370cbf9dc0caab39
+Proprietary - TransitOps Platform

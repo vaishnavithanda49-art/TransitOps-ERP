@@ -25,3 +25,7 @@ dist-ssr
 
 .config/
 !.env
+# Environment files
+.env
+client/.env
+uploads/.env
