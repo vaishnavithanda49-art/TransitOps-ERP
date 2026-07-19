@@ -10,3 +10,23 @@
 export interface DemoResponse {
   message: string;
 }
+
+export interface SendOtpRequest {
+  email: string;
+}
+
+export interface SendOtpResponse {
+  ok: boolean;
+  message: string;
+  expiresInSeconds?: number;
+}
+
+export interface VerifyOtpRequest {
+  email: string;
+  otp: string;
+}
+
+export interface VerifyOtpResponse {
+  ok: boolean;
+  message: string;
+}

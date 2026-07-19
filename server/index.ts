@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import { handleDemo } from "./routes/demo";
+import { handleSendOtp, handleVerifyOtp } from "./routes/auth";
 import { listDrivers, listExpenses, listMaintenance, listTrips, listVehicles } from "./routes/transit";
 import { pingMongo } from "./db/mongo";
 
@@ -29,6 +30,9 @@ export function createServer() {
   app.get("/api/trips", listTrips);
   app.get("/api/maintenance", listMaintenance);
   app.get("/api/expenses", listExpenses);
+
+  app.post("/api/auth/send-otp", handleSendOtp);
+  app.post("/api/auth/verify-otp", handleVerifyOtp);
 
   return app;
 }

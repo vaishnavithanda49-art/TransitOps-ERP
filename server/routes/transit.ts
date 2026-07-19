@@ -3,7 +3,7 @@ import { getCollection, pingMongo } from "../db/mongo";
 
 interface TransitListResponse {
   ok: boolean;
-  source: "mysql" | "fallback";
+  source: "mysql" | "mongodb" | "fallback";
   data: any[];
   message?: string;
 }
@@ -156,7 +156,7 @@ const fallbackExpenses = [
   },
 ];
 
-function createResponse(data: any[], source: "mysql" | "fallback" = "fallback"): TransitListResponse {
+function createResponse(data: any[], source: "mysql" | "mongodb" | "fallback" = "fallback"): TransitListResponse {
   return { ok: true, source, data };
 }
 

@@ -1,8 +1,11 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail, MailCheck, Phone, ShieldCheck, UserRound, UserCog } from "lucide-react";
+import { ArrowRight, CheckCircle2, Eye, EyeOff, LockKeyhole, Mail, MailCheck, Phone, ShieldCheck, UserRound, UserCog } from "lucide-react";
 import { toast } from "sonner";
+import type { SendOtpResponse, VerifyOtpResponse } from "@shared/api";
 import BrandLogo from "../components/BrandLogo";
+import { supabase } from "../lib/supabase";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "../components/ui/input-otp";
 
 type Role = "Fleet Manager" | "Dispatcher" | "Safety Officer" | "Financial Analyst";
 
@@ -30,7 +33,6 @@ const initialForm: FormState = {
 
 const roleOptions: Role[] = ["Fleet Manager", "Dispatcher", "Safety Officer", "Financial Analyst"];
 const USERS_KEY = "transitops_users";
-const OTP_KEY = "transitops_pending_otp";
 
 const passwordStrengthLabel = (score: number) => {
   if (score <= 2) return { label: "Weak", color: "bg-red-500" };
@@ -46,9 +48,11 @@ export default function Register() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [otpStep, setOtpStep] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
   const [otpValue, setOtpValue] = useState("");
-  const [pendingEmail, setPendingEmail] = useState("");
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
 
   const passwordScore = (() => {
     let score = 0;
@@ -136,32 +140,69 @@ export default function Register() {
     setErrors((prev) => ({ ...prev, [name]: fieldError }));
   };
 
-  const sendOtp = (email: string) => {
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const payload = {
-      email,
-      code,
-      expiresAt: Date.now() + 10 * 60 * 1000,
-    };
+  const sendOtp = async () => {
+    const emailError = validateField("email", form.email, form);
+    setTouched((prev) => ({ ...prev, email: true }));
+    setErrors((prev) => ({ ...prev, email: emailError }));
 
-    localStorage.setItem(OTP_KEY, JSON.stringify(payload));
-    setPendingEmail(email);
-    setOtpValue("");
-    setOtpStep(true);
-
-    try {
-      navigator.clipboard.writeText(code);
-    } catch {
-      // Ignore clipboard issues in unsupported environments.
+    if (emailError) {
+      toast.error(emailError);
+      return;
     }
 
-    const mailtoLink = `mailto:${email}?subject=${encodeURIComponent("TransitOps verification code")}&body=${encodeURIComponent(`Your TransitOps verification code is ${code}. It will expire in 10 minutes.`)}`;
-    window.open(mailtoLink, "_blank", "noopener,noreferrer");
+    setIsSendingOtp(true);
 
-    toast.success(`A 6-digit code was prepared for ${email}.`);
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email: form.email.trim(),
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      setEmailVerified(false);
+      setOtpSent(true);
+      setOtpValue("");
+      toast.success(`A 6-digit verification code was sent to ${form.email.trim()}.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to send verification code.";
+      toast.error(message);
+    } finally {
+      setIsSendingOtp(false);
+    }
   };
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const verifyOtpCode = async () => {
+    if (otpValue.length !== 6) {
+      toast.error("Enter the 6-digit verification code.");
+      return;
+    }
+
+    setIsVerifyingOtp(true);
+
+    try {
+      const { error } = await supabase.auth.verifyOtp({
+        email: form.email.trim(),
+        token: otpValue.trim(),
+        type: 'email'
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      setEmailVerified(true);
+      toast.success("Email verified successfully.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "We could not verify your email. Please try again.";
+      toast.error(message);
+    } finally {
+      setIsVerifyingOtp(false);
+    }
+  };
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const nextTouched: FormTouched = {
       fullName: true,
@@ -181,9 +222,14 @@ export default function Register() {
       return;
     }
 
+    if (!emailVerified) {
+      toast.error("Verify your email with the OTP before creating your account.");
+      return;
+    }
+
     setIsSubmitting(true);
 
-    window.setTimeout(() => {
+    try {
       const rawUsers = localStorage.getItem(USERS_KEY);
       const users = rawUsers ? JSON.parse(rawUsers) : [];
       const exists = users.some((user: { email: string }) => user.email.toLowerCase() === form.email.trim().toLowerCase());
@@ -194,37 +240,6 @@ export default function Register() {
         return;
       }
 
-      sendOtp(form.email.trim());
-      setIsSubmitting(false);
-    }, 700);
-  };
-
-  const handleOtpSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    try {
-      const rawOtp = localStorage.getItem(OTP_KEY);
-      if (!rawOtp) {
-        toast.error("The verification code has expired. Please request a new one.");
-        setOtpStep(false);
-        return;
-      }
-
-      const pendingOtp = JSON.parse(rawOtp);
-      if (Date.now() > pendingOtp.expiresAt) {
-        localStorage.removeItem(OTP_KEY);
-        toast.error("The verification code has expired. Please request a new one.");
-        setOtpStep(false);
-        return;
-      }
-
-      if (otpValue.trim() !== pendingOtp.code) {
-        toast.error("The verification code is incorrect. Please try again.");
-        return;
-      }
-
-      const rawUsers = localStorage.getItem(USERS_KEY);
-      const users = rawUsers ? JSON.parse(rawUsers) : [];
       const newUser = {
         fullName: form.fullName.trim(),
         email: form.email.trim(),
@@ -235,7 +250,6 @@ export default function Register() {
 
       users.push(newUser);
       localStorage.setItem(USERS_KEY, JSON.stringify(users));
-      localStorage.removeItem(OTP_KEY);
 
       const payload = {
         sub: newUser.email,
@@ -249,15 +263,18 @@ export default function Register() {
       localStorage.setItem("transitops_role", newUser.role);
       localStorage.setItem("transitops_user", newUser.fullName);
 
-      toast.success(`Email verified. Welcome aboard, ${newUser.fullName.split(" ")[0]}!`);
+      toast.success(`Welcome aboard, ${newUser.fullName.split(" ")[0]}!`);
       window.location.assign("/dashboard");
-    } catch {
-      toast.error("We could not complete verification. Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const handleResendOtp = () => {
-    sendOtp(form.email.trim());
+  const handleEmailChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    handleChange(event);
+    setEmailVerified(false);
+    setOtpSent(false);
+    setOtpValue("");
   };
 
   return (
@@ -289,51 +306,7 @@ export default function Register() {
         </div>
 
         <div className="flex-1 p-6 sm:p-8 lg:p-10">
-          {otpStep ? (
-            <form className="space-y-5" onSubmit={handleOtpSubmit} noValidate>
-              <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-800">
-                <div className="flex items-center gap-2 font-semibold">
-                  <MailCheck className="h-4 w-4" />
-                  Verify your email
-                </div>
-                <p className="mt-2 text-sm text-sky-700">
-                  We prepared a verification code for <span className="font-semibold">{pendingEmail}</span>.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700" htmlFor="otp">
-                  Enter OTP
-                </label>
-                <input
-                  id="otp"
-                  name="otp"
-                  type="text"
-                  inputMode="numeric"
-                  value={otpValue}
-                  onChange={(event) => setOtpValue(event.target.value.replace(/\D/g, "").slice(0, 6))}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-center text-lg font-semibold tracking-[0.35em] outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
-                  placeholder="123456"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-700"
-              >
-                Verify Email
-                <ArrowRight className="h-4 w-4" />
-              </button>
-
-              <div className="flex items-center justify-between text-sm text-slate-600">
-                <p>Code not received?</p>
-                <button type="button" onClick={handleResendOtp} className="font-semibold text-sky-700 transition hover:text-sky-800">
-                  Resend code
-                </button>
-              </div>
-            </form>
-          ) : (
-            <form className="space-y-5" onSubmit={handleSubmit} noValidate>
+          <form className="space-y-5" onSubmit={handleSubmit} noValidate>
               <div className="space-y-2">
               <label className="text-sm font-semibold text-slate-700" htmlFor="fullName">
                 Full Name
@@ -359,27 +332,91 @@ export default function Register() {
             </div>
 
             <div className="grid gap-5 md:grid-cols-2">
-              <div className="space-y-2">
+              <div className="space-y-2 md:col-span-2">
                 <label className="text-sm font-semibold text-slate-700" htmlFor="email">
                   Email Address
                 </label>
-                <div className="relative">
-                  <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    autoComplete="email"
-                    value={form.email}
-                    onChange={handleChange}
-                    onBlur={handleBlur}
-                    className={`w-full rounded-xl border bg-slate-50 py-3 pl-10 pr-4 text-sm outline-none transition ${errors.email && touched.email ? "border-red-400 ring-2 ring-red-200" : "border-slate-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-100"}`}
-                    placeholder="alex@transitops.com"
-                    aria-invalid={Boolean(errors.email && touched.email)}
-                  />
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <div className="relative flex-1">
+                    <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <input
+                      id="email"
+                      name="email"
+                      type="email"
+                      autoComplete="email"
+                      value={form.email}
+                      onChange={handleEmailChange}
+                      onBlur={handleBlur}
+                      className={`w-full rounded-xl border bg-slate-50 py-3 pl-10 pr-4 text-sm outline-none transition ${errors.email && touched.email ? "border-red-400 ring-2 ring-red-200" : emailVerified ? "border-emerald-400 ring-2 ring-emerald-100" : "border-slate-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-100"}`}
+                      placeholder="alex@transitops.com"
+                      aria-invalid={Boolean(errors.email && touched.email)}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void sendOtp()}
+                    disabled={isSendingOtp || emailVerified}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-700 transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {emailVerified ? (
+                      <>
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                        Verified
+                      </>
+                    ) : isSendingOtp ? (
+                      "Sending..."
+                    ) : (
+                      "Send OTP"
+                    )}
+                  </button>
                 </div>
                 {errors.email && touched.email ? (
                   <p className="text-sm text-red-600" role="alert">{errors.email}</p>
+                ) : emailVerified ? (
+                  <p className="text-sm text-emerald-600" role="status">Email verified successfully.</p>
+                ) : null}
+
+                {otpSent && !emailVerified ? (
+                  <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-sky-800">
+                      <MailCheck className="h-4 w-4" />
+                      Enter the 6-digit code sent to {form.email.trim()}
+                    </div>
+                    <p className="mt-2 text-sm text-sky-700">The code expires in 10 minutes. Do not share it with anyone.</p>
+
+                    <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center">
+                      <InputOTP
+                        maxLength={6}
+                        value={otpValue}
+                        onChange={setOtpValue}
+                      >
+                        <InputOTPGroup>
+                          <InputOTPSlot index={0} />
+                          <InputOTPSlot index={1} />
+                          <InputOTPSlot index={2} />
+                          <InputOTPSlot index={3} />
+                          <InputOTPSlot index={4} />
+                          <InputOTPSlot index={5} />
+                        </InputOTPGroup>
+                      </InputOTP>
+
+                      <button
+                        type="button"
+                        onClick={() => void verifyOtpCode()}
+                        disabled={isVerifyingOtp || otpValue.length !== 6}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {isVerifyingOtp ? "Verifying..." : "Verify OTP"}
+                      </button>
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-between text-sm text-slate-600">
+                      <p>Code not received?</p>
+                      <button type="button" onClick={() => void sendOtp()} className="font-semibold text-sky-700 transition hover:text-sky-800">
+                        Resend code
+                      </button>
+                    </div>
+                  </div>
                 ) : null}
               </div>
 
@@ -511,21 +548,20 @@ export default function Register() {
 
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || !emailVerified}
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-70"
             >
-              {isSubmitting ? "Creating account..." : "Create Account"}
-              {!isSubmitting ? <ArrowRight className="h-4 w-4" /> : null}
+              {isSubmitting ? "Creating account..." : emailVerified ? "Create Account" : "Verify email to continue"}
+              {!isSubmitting && emailVerified ? <ArrowRight className="h-4 w-4" /> : null}
             </button>
 
-              <p className="text-center text-sm text-slate-600">
-                Already have an account? {" "}
-                <Link to="/login" className="font-semibold text-sky-700 transition hover:text-sky-800">
-                  Login
-                </Link>
-              </p>
-            </form>
-          )}
+            <p className="text-center text-sm text-slate-600">
+              Already have an account? {" "}
+              <Link to="/login" className="font-semibold text-sky-700 transition hover:text-sky-800">
+                Login
+              </Link>
+            </p>
+          </form>
         </div>
       </div>
     </div>
